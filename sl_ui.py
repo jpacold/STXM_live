@@ -164,6 +164,7 @@ class SpecFrame(tk.Frame):
         if self.spec.cbar:
             self.fig.clear()
             self.spec = self.fig.add_subplot(111)
+            self.spec.cbar = None
         self.spec.set_title(path.basename(self.master.hdrfile)[:-4], y = 1.01)
         self.spec.set_xlabel('Energy (eV)')
         
