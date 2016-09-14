@@ -3,14 +3,17 @@ import tkinter.filedialog as fdialog
 
 import numpy as np
 
-from time import time
+from time import time, sleep
 from threading import Timer
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler, FileSystemEvent
 
 from os import path
 from platform import system
 from sl_ui import *
 from sl_io import *
 from sl_proc import *
+
 
 
 class stxmdata():        
@@ -35,6 +38,15 @@ class stxmdata():
     
     def __init__(self):
         self.clear()
+
+
+class stackhandler(FileSystemEventHandler):
+    def __init__(self, appwindow):
+        self.app = appwindow
+        self.app.livestack()
+    def on_created(self, event):
+        sleep(0.1)
+        self.app.livestack()
 
 
 class MainWindow(tk.Frame):
@@ -139,18 +151,21 @@ class MainWindow(tk.Frame):
             for k in range(len(self.data.rawstack)):
                 self.data.keeppx *= (self.data.alnstack[-1] != -1)
             
+            # Start watchdog observer to automatically load new images
             if len(self.data.energies) > len(self.data.rawstack):
                 self.stackrunning = True
                 self.chkpoint = time()
-                self.livestack()
+                self.refresh = Timer(1.0, self.timeleft).start()
+                self.event_handler = stackhandler(self)
+                self.newimage.schedule(self.event_handler, path.dirname(self.hdrfile))
+                self.newimage.start()
             else:
                 self.stackrunning = False
-                if self.refresh is not None:
-                    self.refresh.cancel()
+                self.newimage.stop()
+                self.stackdisp.set('')
         else:
             self.stackrunning = False
-            if self.refresh is not None:
-                self.refresh.cancel()
+            self.newimage.stop()
         
         self.setfnames()
         self.enablectrls()
@@ -369,14 +384,23 @@ class MainWindow(tk.Frame):
         self.setxim(ind = ii)
         self.genI0IT()
     
-    def timeleft(self):
-        tlist = [path.getctime(f) for f in self.data.imgfile]
-        for i in range(len(tlist)-1, 0, -1):
-            tlist[i] -= tlist[i-1]
-        tlist[0] -= self.starttime
-        dt = np.mean(np.array(tlist))
-        
-        return dt
+    def timeleft(self, return_time=False):
+        if self.stackrunning:
+            tlist = [path.getctime(f) for f in self.data.imgfile]
+            for i in range(len(tlist)-1, 0, -1):
+                tlist[i] -= tlist[i-1]
+            tlist[0] -= self.starttime
+            dt = np.mean(np.array(tlist))
+            
+            tleft = dt*(len(self.data.energies) - len(self.data.rawstack)) - (time() - self.chkpoint)
+            sec = str(int(tleft)%60)
+            if len(sec) == 1:
+                sec = '0' + sec
+            self.stackdisp.set('Stack running... ' + str(int(tleft/60)) + ':' + sec + ' remaining')
+            if return_time:
+                return dt
+            
+            Timer(1.0, self.timeleft).start()
     
     def livestack(self):
         if self.stackrunning:
@@ -387,15 +411,13 @@ class MainWindow(tk.Frame):
                 self.addxim(f)
                 self.chkpoint = time()
             
-            my_dt = self.timeleft()
-            tleft = my_dt*(len(self.data.energies) - len(self.data.rawstack)) - (time() - self.chkpoint)
-            sec = str(int(tleft)%60)
-            if len(sec) == 1:
-                sec = '0' + sec
-            self.stackdisp.set('Stack running... ' + str(int(tleft/60)) + ':' + sec + ' remaining')
+            my_dt = self.timeleft(return_time=True)
             
         if len(self.data.imgfile) == len(self.data.energies):
             self.stackrunning = False
+            if self.refresh is not None:
+                self.refresh.cancel()
+            self.newimage.stop()
             
             if self.mode == 'stack':
                 self.stackdisp.set('Stack complete')
@@ -413,13 +435,13 @@ class MainWindow(tk.Frame):
                     self.data.map = genmap(self.data.rawimg[0], self.data.rawimg[1])
                 self.stackdisp.set('Map complete')
         
-        elif time() - self.chkpoint > 3.0*my_dt:
+        elif time() - self.chkpoint > max(3.0*my_dt, 10.0):
             self.stackdisp.set('Timed out -- stack aborted or files not found')
             self.stackrunning = False
-            
-        else:
-            self.refresh = Timer(1.0, self.livestack).start()
-    
+            if self.refresh is not None:
+                self.refresh.cancel()
+            self.newimage.stop()
+   
     def setcommands(self):
         # For setting .hdr file
         self.browsebtn.config(command = self.hdrdialog)
@@ -474,6 +496,7 @@ class MainWindow(tk.Frame):
         self.mode = 'single'
         self.stackrunning = False
         self.refresh = None
+        self.newimage = Observer()
         
         makefilepicker(self)
         makeimgcontrols(self)
