@@ -5,11 +5,12 @@ auto-aligning image stacks and processing them into
 NEXAFS spectra. Writes files for later analysis
 with aXis2000.
 
-Requirements (Anaconda distribution recommended):
+Requirements:
 Python3
 tkinter
 numpy
 scipy
 matplotlib
+watchdog
 
 Edit stxmlive_config.txt to set the default top-level directory for data.
