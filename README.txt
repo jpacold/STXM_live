@@ -12,5 +12,6 @@ numpy
 scipy
 matplotlib
 watchdog
+keras with any backend (tensorflow recommended; GPU acceleration not required)
 
 Edit stxmlive_config.txt to set the default top-level directory for data.
