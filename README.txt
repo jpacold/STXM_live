@@ -7,9 +7,9 @@ with aXis2000.
 
 Requirements:
 Python3
-tkinter
 numpy
 scipy
+scikit-image
 matplotlib
 watchdog
 keras with any backend (tensorflow recommended; GPU acceleration not required)
