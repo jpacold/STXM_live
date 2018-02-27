@@ -441,7 +441,18 @@ class MainWindow(tk.Frame):
             if self.refresh is not None:
                 self.refresh.cancel()
             self.newimage.stop()
-   
+    
+    def show_suggestions(self):
+        reg = predict_regions(self.data.rawimg, self.data.imgdims)
+        self.imgdisplay.img.autoscale(False)
+        for y,x,a in reg:
+            w = np.sqrt(a)*2.5
+            xlist = [x-w,x-w,x+w,x+w,x-w]
+            ylist = [y-w,y+w,y+w,y-w,y-w]
+            ylist = [self.data.imgdims[1]-q for q in ylist]
+            self.imgdisplay.img.plot(xlist, ylist, color='green')
+        self.imgdisplay.canvas.draw()
+    
     def setcommands(self):
         # For setting .hdr file
         self.browsebtn.config(command = self.hdrdialog)
@@ -458,6 +469,7 @@ class MainWindow(tk.Frame):
         self.showroischk.config(command = lambda: self.imgdisplay.redraw(self))
         self.autoalignchk.config(command = self.genI0IT)
         self.autosegment.config(command = self.autoselect_rois)
+        self.suggestnext.config(command = self.show_suggestions)
         
         # Image nav buttons
         self.imgfirst.config(command = lambda: self.setxim(ind = 0))
